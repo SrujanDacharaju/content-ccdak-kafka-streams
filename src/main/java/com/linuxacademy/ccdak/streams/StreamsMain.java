@@ -23,7 +23,7 @@ public class StreamsMain {
         final StreamsBuilder builder = new StreamsBuilder();
         KStream<String, String> stream = builder.stream("streams-input-topic");
 
-        stream.to("streams-input-topic");
+        stream.to("streams-output-topic");
 
         final Topology topology = builder.build(props);
         final KafkaStreams streams = new KafkaStreams(topology, props);
