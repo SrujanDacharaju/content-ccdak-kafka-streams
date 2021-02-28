@@ -1,12 +1,13 @@
 package com.linuxacademy.ccdak.streams;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.StreamsConfig;
-import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.*;
+import org.apache.kafka.streams.kstream.ForeachAction;
+import org.apache.kafka.streams.kstream.KStream;
 
 public class StatelessTransformationsMain {
 
@@ -23,8 +24,35 @@ public class StatelessTransformationsMain {
         // Get the source stream.
         final StreamsBuilder builder = new StreamsBuilder();
         
-        //Implement streams logic.
-        
+        //Implement streams logic Begin.
+
+        KStream<String, String> source = builder.stream("stateless-xform-input-topic");
+        KStream<String, String>[] branch = source.branch(((key, value) -> key.startsWith("a")), ((key, value) -> true));
+        KStream<String, String> aKeyStream = branch[0];
+        KStream<String, String> otherStream = branch[1];
+        //Filter aKeyStream with key beging with letter a
+        aKeyStream = aKeyStream.filter((key, value) -> key.startsWith("a"));
+
+        //Convert stream
+        aKeyStream = aKeyStream.flatMap((key, value) -> {
+         List<KeyValue<String,String>> result = new LinkedList();
+         result.add(KeyValue.pair(key,value.toUpperCase()));
+         result.add(KeyValue.pair(key,value.toLowerCase()));
+         return result;
+        });
+
+        //convert each record key to upper case value
+        aKeyStream.map((key, value) -> KeyValue.pair(key.toUpperCase(),value));
+
+        //Merge two stream back together
+        KStream<String, String> mergedStream = aKeyStream.merge(otherStream);
+
+        mergedStream = mergedStream.peek((key, value) -> System.out.println("key= " + key + ",value= " + value));
+
+        mergedStream.to("stateless-xform-output-topic");
+
+        //Implement streams logic End.
+
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
         // Print the topology to the console.
