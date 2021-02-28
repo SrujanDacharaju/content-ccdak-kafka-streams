@@ -7,6 +7,7 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.kstream.*;
 
 public class AggregationsMain {
 
@@ -22,9 +23,24 @@ public class AggregationsMain {
 
         // Get the source stream.
         final StreamsBuilder builder = new StreamsBuilder();
-        
-        //Implement streams logic.
-        
+        KStream<String,String> source = builder.stream("aggregations-input-topic");
+
+        final KGroupedStream<String, String> groupedStream = source.groupByKey();
+
+        final KTable<String, Integer> aggregatedTable = groupedStream.aggregate(
+                () -> 0,
+                (key, value, aggregate) -> aggregate + value.length(),
+                Materialized.with(Serdes.String(), Serdes.Integer()));
+        aggregatedTable.toStream().to("agg-countchars-output-topic", Produced.with(Serdes.String(),Serdes.Integer()));
+
+        final KTable<String, Long> countedTable = groupedStream.count(Materialized.with(Serdes.String(), Serdes.Long()));
+        countedTable.toStream().to("agg-counted-output-topic");
+
+
+        final KTable<String, String> reducedTable = groupedStream.reduce((aggValue, newValue) -> aggValue + " " + newValue);
+        reducedTable.toStream().to("agg-reduced-output-topic");
+
+
         final Topology topology = builder.build();
         final KafkaStreams streams = new KafkaStreams(topology, props);
         // Print the topology to the console.
